@@ -1,25 +1,24 @@
 
 import Options from "./options"
 import Artist from "./artist"
-import { Cursor } from "./artist"
+import Cursor from "./cursor"
 
 export interface Element {}
 export interface Terminal extends Element {}
-type Maker<T> = new(...args: any) => T
 
+//////////////////////////////////////////////////////// Element
 export abstract class Element {
   up = 0
-  down = 0
-  width = 0
+	down = 0
+	width = 0
   height = 0
-  needsSpace = false
 
 	static wrap(thing: any, maker?: any) : Element {
 		if (typeof thing == "string") {
 			if (maker)
 				return new maker("" + thing)
 			else
-				return new Terminal("" + thing)
+				return new Strut(new Terminal("" + thing))
 		}
 		else
 			return thing
@@ -29,18 +28,31 @@ export abstract class Element {
 }
 
 export type Elements = Element[]
-type StringOrElement = string | Element
+export type StringOrElement = string | Element
+
+//////////////////////////////////////////////////////// Container
 
 abstract class Container extends Element {
-  constructor(public children: Elements) {
-    super()
+	children: Elements
+
+  constructor(children: StringOrElement[]) {
+		super()
+		function shrinkAdjacentStruts(previous: Element, next: Element): Element {
+			if (previous instanceof Strut && next instanceof Strut) {
+				previous.right /= 2
+				next.left /= 2
+			}
+			return next
+		}
+		this.children = children.map(e => Element.wrap(e))
+		// this.children.reduce(shrinkAdjacentStruts)
   }
 }
 
 export class Diagram extends Container {
 
 	constructor(...children: StringOrElement[]) {
-		super(children.map(Element.wrap))
+		super(children)
 		if(!(this.children[0] instanceof Start)) {
 			this.children.unshift(new Start())
 		}
@@ -49,7 +61,7 @@ export class Diagram extends Container {
 		}
 
     for(const child of this.children) {
-			this.width += child.width + (child.needsSpace?20:0);
+			this.width += child.width
 			this.up = Math.max(this.up, child.up - this.height);
 			this.height += child.height;
 			this.down = Math.max(this.down - child.height, child.down);
@@ -64,19 +76,16 @@ export class Diagram extends Container {
 
 
 export class Sequence extends Container {
-	constructor(...children: Element[]) {
+	constructor(...children: StringOrElement[]) {
 		super(children);
-		this.needsSpace = true
 
 		for(var i = 0; i < this.children.length; i++) {
 			var item = this.children[i];
-			this.width += item.width + (item.needsSpace?20:0);
+			this.width += item.width
 			this.up = Math.max(this.up, item.up - this.height);
 			this.height += item.height;
 			this.down = Math.max(this.down - item.height, item.down);
 		}
-		if(this.children[0].needsSpace) this.width -= 10;
-		if(this.children[this.children.length-1].needsSpace) this.width -= 10;
 	}
 
 	accept(visitor: Artist, cursor: Cursor): Cursor {
@@ -122,11 +131,11 @@ export class Sequence extends Container {
 
 export class Choice extends Container {
 
-	constructor(public inlineChoice: number, ...children: Elements) {
+	constructor(public inlineChoice: number, ...children: StringOrElement[]) {
 		super(children)
 
 		var first = 0;
-		var last = children.length - 1;
+		var last = this.children.length - 1;
 		this.width = Math.max.apply(null, this.children.map(function(el){return el.width})) + Options.AR*4;
 		this.height = this.children[inlineChoice].height;
 		this.up = this.children[first].up;
@@ -153,7 +162,7 @@ export class Choice extends Container {
 
 
 export class Optional extends Choice {
-	constructor(item: Element, skip?) {
+	constructor(item: StringOrElement, skip?: "skip") {
 		if( skip === undefined )
 			super(1, new Skip(), item);
 		else if ( skip === "skip" )
@@ -176,7 +185,7 @@ export class OneOrMore extends Element {
 		this.height = this.item.height;
 		this.up = this.item.up;
 		this.down = Math.max(Options.AR*2, this.item.down + Options.VS + this.rep.up + this.rep.height + this.rep.down);
-		this.needsSpace = true;
+//		this.needsSpace()
   }
 
 	accept(visitor: Artist, cursor: Cursor): Cursor {
@@ -191,12 +200,18 @@ export class ZeroOrMore extends Element {
 	constructor(item: StringOrElement, rep?: StringOrElement) {
 		super();
 		this.item = Element.wrap(item);
-		this.rep = rep ? Element.wrap(rep, Comment) : undefined
-		this.width = Math.max(this.item.width, this.rep.width) + Options.AR*2;
+		if (rep) {
+			this.rep = Element.wrap(rep, Comment)
+			this.width = Math.max(this.item.width, this.rep.width) + Options.AR*2;
+			this.down = Math.max(Options.AR*2, this.item.down + Options.VS + this.rep.up + this.rep.height + this.rep.down);
+		} else {
+			this.rep =  undefined
+			this.width = this.item.width + Options.AR*2;
+			this.down = Math.max(Options.AR*2, this.item.down + Options.VS);
+		}
 		this.height = this.item.height;
 		this.up = this.item.up;
-		this.down = Math.max(Options.AR*2, this.item.down + Options.VS + this.rep.up + this.rep.height + this.rep.down);
-		this.needsSpace = true;
+//		this.needsSpace()
 	}
 
 	accept(visitor: Artist, cursor: Cursor) : Cursor {
@@ -271,7 +286,7 @@ export class End extends Element {
 	}
 }
 
-interface TerminalOpts {
+export interface TerminalOpts {
   href?: string
   title?: string
   cls?: string
@@ -289,11 +304,11 @@ abstract class TerminalBase extends Element {
 		this.href = href;
 		this.title = title;
 		this.cls = cls;
-		this.width = this.text.length * Options.CHAR_WIDTH + 20; /* Assume that each char is .5em, and that the em is 16px */
+		this.width = this.text.length * Options.CHAR_WIDTH + 20;
 		this.height = 0;
-		this.up = 11;
-		this.down = 11;
-		this.needsSpace = true;
+		this.up = Options.CHAR_WIDTH
+		this.down = Options.CHAR_WIDTH
+//		this.needsSpace()
 	}
 
 	accept(visitor: Artist, cursor: Cursor): Cursor {
@@ -325,11 +340,39 @@ export class Comment extends TerminalBase {
 	}
 }
 
+export class Strut extends Element {
+	constructor(public element: Element, private _left=10, private _right=_left) {
+		super()
+		this.height = element.height
+		this.up = element.up
+		this.down = element.down
+		this.setWidth()
+	}
+
+	private setWidth() {
+		this.width = this.element.width + this._left + this._right
+	}
+
+	get left(): number { return this._left }
+	set left(v: number) {
+		this._left = v
+		this.setWidth()
+	}
+
+	get right(): number { return this._left }
+	set right(v: number) {
+		this._left = v
+		this.setWidth()
+	}
+
+	accept(visitor: Artist, cursor: Cursor) : Cursor {
+		return visitor.strut(this, cursor)
+	}
+}
 
 export class Skip extends Element {
 	constructor() {
 		super();
-		this.needsSpace = false;
 	}
 
 	accept(visitor: Artist, cursor: Cursor): Cursor {

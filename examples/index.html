@@ -11,8 +11,15 @@
   svg path {
       stroke-width: 3;
       stroke: black;
-      fill: rgba(0,0,0,0);
+      fill: none;
   }
+  svg path.redline { stroke: red }
+  svg path.blueline { stroke: blue }
+
+  svg path.arrow {
+      fill: black;
+  }
+
   svg text {
       font: bold 14px sans-serif;
       text-anchor: middle;
@@ -46,16 +53,12 @@
   svg path.diagram-text {
       stroke-width: 3;
       stroke: black;
-      fill: white;
-      cursor: help;
-  }
-  svg g.diagram-text:hover path.diagram-text {
-      fill: #eee;
+      fill: red;
   }
 
 
   </style>
   <body>
-    <script src="src/driver.ts"></script>
+    <script src="./driver.ts"></script>
   </body>
 </html>

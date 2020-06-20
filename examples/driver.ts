@@ -1,12 +1,27 @@
-import Artist from "./artist"
-import * as R from "./builder"
-let d = new R.Diagram(
-//  new R.Choice(2, new R.Terminal("Hello"), new R.Terminal("Bye"), new R.Terminal("very long one"),
-//   new R.Choice(1, new R.Terminal("Hello"), new R.Terminal("Bye"), new R.Terminal("very long one"))),
-new R.OneOrMore("dave", "lots"),
-new R.ZeroOrMore("dave", "lots and lots and lots"),
-new R.Optional(new R.Terminal("dave"), "skip")
+import * as rr from "../src/railroad-diagrams"
+
+let d: any
+let svg: SVGElement
+
+// d = rr.diagram(
+// rr.oneOrMore("dave", "lots"),
+// rr.zeroOrMore("dave", "lots and lots and lots"),
+// rr.optional("dave", "skip")
+// )
+// svg = rr.toSvg(d)
+// console.dir(svg)
+// document.body.appendChild(svg)
+d = rr.diagram(
+  rr.choice(
+    0,
+    rr.sequence(
+      "enum",
+      rr.NT("identifier"),
+      rr.optional(rr.sequence("{", rr.NT("enumerator-list"), "}"))
+    ),
+    rr.sequence("enum", "{", rr.NT("enumerator-list"), "}")
+  )
 )
-let svg = new Artist(d).toSvg()
-console.dir(svg)
+
+svg = rr.toSvg(d)
 document.body.appendChild(svg)
